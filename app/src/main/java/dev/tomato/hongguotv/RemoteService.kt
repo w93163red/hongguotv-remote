@@ -13,11 +13,11 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction
 
 private const val TAG = "HongguoTV"
 private const val LONG_PRESS_MS = 500L
 private const val TAP_MS = 50L
-private const val SWIPE_MS = 200L
 private const val SCROLL_MS = 300L
 private const val SEEK_SECONDS = 10
 private const val CURSOR_REPEAT_DELAY_MS = 250L
@@ -145,7 +145,7 @@ class RemoteService : AccessibilityService() {
 
     private fun execute(action: Action, screen: Screen) {
         when (action) {
-            is Action.SwipeVertical -> screen.pager?.let { swipe(it, action.next) }
+            is Action.SwipeVertical -> if (!gestureBusy) screen.pagerNode?.performAction(scroll(action.next).id)
             Action.TapCenter -> screen.pager?.let { tap(it.centerX(), it.centerY()) }
             is Action.Seek -> screen.pager?.let { seek(it, screen.content, action.forward) }
             is Action.MoveCursor -> moveCursor(action, screen, (screen.content.height() * 0.03).toInt())
@@ -178,13 +178,9 @@ class RemoteService : AccessibilityService() {
         if (action.dy > 0) drag(x, from, x, to, SCROLL_MS) else drag(x, to, x, from, SCROLL_MS)
     }
 
-    private fun swipe(pager: Rect, next: Boolean) {
-        if (gestureBusy) return
-        val x = pager.centerX().toFloat()
-        val low = pager.top + pager.height() * 0.72f
-        val high = pager.top + pager.height() * 0.28f
-        if (next) drag(x, low, x, high, SWIPE_MS) else drag(x, high, x, low, SWIPE_MS)
-    }
+    // The pager's own scroll action lands exactly one page, and needs no touch injection, which some TVs refuse.
+    private fun scroll(forward: Boolean) =
+        if (forward) AccessibilityAction.ACTION_SCROLL_FORWARD else AccessibilityAction.ACTION_SCROLL_BACKWARD
 
     private fun tap(x: Int, y: Int) {
         val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }

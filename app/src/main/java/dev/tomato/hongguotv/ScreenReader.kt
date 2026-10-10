@@ -5,8 +5,8 @@ import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 
-/** What the service knows about the foreground screen: the pure snapshot plus the geometry gestures need. */
-class Screen(val snapshot: ScreenSnapshot, val content: Rect, val pager: Rect?)
+/** What the service knows about the foreground screen: the pure snapshot plus the geometry and nodes actions need. */
+class Screen(val snapshot: ScreenSnapshot, val content: Rect, val pager: Rect?, val pagerNode: AccessibilityNodeInfo?)
 
 /**
  * Reads the window list. Everything is keyed on framework class names, collection info and geometry,
@@ -29,11 +29,12 @@ fun readScreen(windows: List<AccessibilityWindowInfo>, activity: String?): Scree
         // A dialog window above the activity (选集 sheet), or something tappable drawn over the pager centre.
         hasOverlaySheet = ownRoots.size > 1 || found?.covered == true,
     )
-    return Screen(snapshot, content, found?.pager)
+    return Screen(snapshot, content, found?.pager, found?.pagerNode)
 }
 
 private class PagerSearch(val content: Rect) {
     var pager: Rect? = null
+    var pagerNode: AccessibilityNodeInfo? = null
     var covered = false
 
     fun run(root: AccessibilityNodeInfo): PagerSearch = apply { visit(root) }
@@ -48,6 +49,7 @@ private class PagerSearch(val content: Rect) {
             // ViewPager2 reports itself as ViewPager; vertical orientation shows up as a one-column collection.
             if (node.className?.contains("ViewPager") == true && node.collectionInfo?.columnCount == 1) {
                 pager = r
+                pagerNode = node
                 return
             }
         } else {
