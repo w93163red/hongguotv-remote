@@ -82,6 +82,8 @@ class CursorOverlay(context: Context) {
 
     /** Moves by (dx, dy) clamped to the content. Returns false when already pinned against that edge. */
     fun moveBy(dx: Int, dy: Int): Boolean {
+        // A held key's repeat can outlive the pointer when the screen changes under it.
+        if (!pointerShown) return true
         val x = (position.x + dx).coerceIn(bounds.left + 1, bounds.right - 2)
         val y = (position.y + dy).coerceIn(bounds.top + 1, bounds.bottom - 2)
         if (x == position.x && y == position.y) return false

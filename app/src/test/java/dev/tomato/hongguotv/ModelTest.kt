@@ -19,6 +19,8 @@ class ModelTest {
     @Test fun homeFeedIsFeedAndDramaIsPlayer() {
         assertEquals(Mode.FEED, classify(feed, Override.None))
         assertEquals(Mode.PLAYER, classify(player, Override.None))
+        // Without a tab bar to select, the feed's LEFT/RIGHT/BACK must reach the app.
+        assertEquals(Mode.PLAYER, classify(feed.copy(hasTabBar = false), Override.None))
     }
 
     @Test fun forcedCursorWinsOverVideo() {

@@ -15,7 +15,7 @@ data class ScreenSnapshot(
     val hasTabBar: Boolean,
 )
 
-/** FEED is the 首页 video feed, which sits above the bottom tab bar; PLAYER is a drama's episode pager. */
+/** FEED is the 首页 video feed with the bottom tab bar under it; PLAYER is any other full-screen video pager. */
 enum class Mode { FEED, PLAYER, TABS, CURSOR, PASS }
 
 /** What the user has switched to on top of the screen's own mode. */
@@ -30,8 +30,8 @@ fun classify(s: ScreenSnapshot, override: Override): Mode = when {
     override is Override.Tabs && s.hasTabBar && !s.hasOverlaySheet -> Mode.TABS
     override == Override.Cursor -> Mode.CURSOR
     !s.hasFullHeightVerticalPager || s.hasOverlaySheet -> Mode.CURSOR
-    s.activity == HOME_ACTIVITY -> Mode.FEED
-    s.activity == PLAYER_ACTIVITY -> Mode.PLAYER
+    s.activity == HOME_ACTIVITY && s.hasTabBar -> Mode.FEED
+    s.activity == HOME_ACTIVITY || s.activity == PLAYER_ACTIVITY -> Mode.PLAYER
     else -> Mode.CURSOR
 }
 
