@@ -57,6 +57,7 @@ class RemoteService : AccessibilityService() {
 
     override fun onServiceConnected() {
         cursor = CursorOverlay(this)
+        handler.post { refresh() }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {

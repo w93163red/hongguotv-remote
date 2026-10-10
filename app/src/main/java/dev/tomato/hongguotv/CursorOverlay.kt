@@ -37,14 +37,13 @@ class CursorOverlay(context: Context) {
     ).apply { gravity = Gravity.TOP or Gravity.START }
 
     val position = Point()
-    private var bounds = Rect()
+    private val bounds = Rect()
     private var shown = false
 
+    /** Appears at the centre each time it is shown, where the viewer is already looking. */
     fun show(content: Rect) {
-        if (bounds != content) {
-            if (bounds.isEmpty || !content.contains(position.x, position.y)) position.set(content.centerX(), content.centerY())
-            bounds = Rect(content)
-        }
+        if (!shown || !content.contains(position.x, position.y)) position.set(content.centerX(), content.centerY())
+        bounds.set(content)
         place()
         if (!shown) {
             wm.addView(ring, params)
