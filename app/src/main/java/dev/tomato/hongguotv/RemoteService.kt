@@ -29,11 +29,11 @@ class RemoteService : AccessibilityService() {
     private var cursorForced = false
     // A deadline rather than a flag, so a lost gesture callback can never wedge input.
     private var busyUntil = 0L
-    private val gestureBusy get() = SystemClock.uptimeMillis() < busyUntil
+    private var seekDrag: SeekDrag? = null
+    private val gestureBusy get() = SystemClock.uptimeMillis() < busyUntil || seekDrag != null
 
     /** A key we consumed on ACTION_DOWN; its ACTION_UP must be consumed too. */
-    private inner class Press(val short: Action, val long: Action, val screen: Screen) {
-        val downAt = SystemClock.uptimeMillis()
+    private inner class Press(val short: Action, val long: Action, val screen: Screen, val downAt: Long) {
         var longFired = false
         val fireLong = Runnable { longFired = true; execute(long, screen) }
         val repeat = object : Runnable {
@@ -45,6 +45,7 @@ class RemoteService : AccessibilityService() {
     }
     private val presses = mutableMapOf<Int, Press>()
 
+    private var foreground = ""
     private var refreshPending = false
     private val refreshRunnable = Runnable { refreshPending = false; refresh() }
 
@@ -63,6 +64,9 @@ class RemoteService : AccessibilityService() {
             val cls = event.className?.toString()
             if (cls != null && isActivity.getOrPut(cls) { resolvesToActivity(cls) }) activity = cls
         }
+        // Content changes are subscribed only so the node cache stays fresh; re-reading the screen on each of them
+        // (several per second during playback) starved the main thread that runs key timers.
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) return
         if (!refreshPending) {
             refreshPending = true
             handler.postDelayed(refreshRunnable, 250)
@@ -89,7 +93,8 @@ class RemoteService : AccessibilityService() {
                     }
                     return true
                 }
-                if (event.repeatCount > 0) return false
+                // Other apps' keys pass without a window read, which cost ~100ms per key on the TV launcher.
+                if (event.repeatCount > 0 || foreground != TARGET_PACKAGE) return false
                 val t0 = SystemClock.uptimeMillis()
                 val (screen, mode) = refresh()
                 val short = actionFor(mode, KeyPress(code))
@@ -99,13 +104,14 @@ class RemoteService : AccessibilityService() {
                     if (mode != Mode.PASS) scheduleRefresh(400)
                     return false
                 }
-                val p = Press(short, long, screen)
+                // Timers run from the key's own down time, so the window read above does not eat into a hold.
+                val p = Press(short, long, screen, event.downTime)
                 presses[code] = p
                 if (long != Action.Pass) {
-                    handler.postDelayed(p.fireLong, LONG_PRESS_MS)
+                    handler.postAtTime(p.fireLong, p.downAt + LONG_PRESS_MS)
                 } else {
                     execute(short, screen)
-                    if (short is Action.MoveCursor) handler.postDelayed(p.repeat, CURSOR_REPEAT_DELAY_MS)
+                    if (short is Action.MoveCursor) handler.postAtTime(p.repeat, p.downAt + CURSOR_REPEAT_DELAY_MS)
                 }
                 return true
             }
@@ -124,6 +130,7 @@ class RemoteService : AccessibilityService() {
 
     private fun refresh(): Pair<Screen, Mode> {
         val screen = readScreen(windows, activity)
+        foreground = screen.snapshot.pkg
         // Forcing the cursor is scoped to the player screen it was forced on.
         if (classify(screen.snapshot, cursorForced = false) != Mode.PLAYER) cursorForced = false
         val mode = classify(screen.snapshot, cursorForced)
@@ -142,6 +149,7 @@ class RemoteService : AccessibilityService() {
             is Action.Seek -> screen.pager?.let { seek(it, screen.content, action.forward) }
             is Action.MoveCursor -> moveCursor(action, screen, (screen.content.height() * 0.03).toInt())
             Action.CursorClick -> {
+                Log.d(TAG, "click at ${cursor.position}")
                 tap(cursor.position.x, cursor.position.y)
                 scheduleRefresh(400)
                 scheduleRefresh(1200)
@@ -155,8 +163,8 @@ class RemoteService : AccessibilityService() {
     }
 
     private fun holdStep(heldMs: Long, content: Rect): Int {
-        val ramp = ((heldMs - CURSOR_REPEAT_DELAY_MS).coerceAtLeast(0) / 900f).coerceAtMost(1f)
-        val heightsPerSecond = 0.35f + 0.9f * ramp
+        val ramp = ((heldMs - CURSOR_REPEAT_DELAY_MS).coerceAtLeast(0) / 700f).coerceAtMost(1f)
+        val heightsPerSecond = 0.5f + 1.1f * ramp
         return (content.height() * heightsPerSecond * CURSOR_TICK_MS / 1000f).toInt().coerceAtLeast(1)
     }
 
@@ -187,32 +195,23 @@ class RemoteService : AccessibilityService() {
         dispatch(StrokeDescription(path, 0, durationMs))
     }
 
-    /**
-     * The player exposes no SeekBar or RangeInfo, so seeking drags its progress row. The row drags relative
-     * to where the finger lands, and only shows position, duration and the real track while dragging, so the
-     * drag is split: nudge to open the readout, read it, then finish at the 10s offset.
-     */
     private fun seek(pager: Rect, content: Rect, forward: Boolean) {
+        val offset = if (forward) SEEK_SECONDS else -SEEK_SECONDS
+        seekDrag?.let { it.add(offset); return }
         if (gestureBusy) return Unit.also { Log.d(TAG, "seek: gesture busy") }
         val root = rootInActiveWindow ?: return Unit.also { Log.d(TAG, "seek: no active window") }
         val row = findSeekRow(root, pager, content) ?: return Unit.also { Log.d(TAG, "seek: no progress row") }
-        val dir = if (forward) 1 else -1
-        val x0 = row.start.x.toFloat()
-        val y = row.start.y.toFloat()
-        val nudge = x0 + dir * content.width() * 0.04f
-        val first = StrokeDescription(Path().apply { moveTo(x0, y); lineTo(nudge, y) }, 0, 100, true)
-        dispatch(first) {
-            handler.postDelayed({
-                val readout = rootInActiveWindow?.let { readDrag(it, content) }
-                val dx = if (readout == null) 0f else dir * SEEK_SECONDS * (readout.trackWidth ?: row.width).toFloat() / readout.durationSec
-                val end = (x0 + dx).coerceIn(content.left + 1f, content.right - 2f)
-                Log.d(TAG, "seek: at=${readout?.positionSec} of=${readout?.durationSec} track=${readout?.trackWidth} row=${row.width} dx=$dx")
-                dispatch(first.continueStroke(Path().apply { moveTo(nudge, y); lineTo(end, y) }, 0, 150, false))
-            }, 150)
-        }
+        val drag = SeekDrag(
+            row.start.x.toFloat(), row.start.y.toFloat(), row.width, content, handler,
+            dispatch = ::dispatch,
+            readout = { rootInActiveWindow?.let { readDrag(it, content) } },
+            onEnd = { seekDrag = null },
+        )
+        seekDrag = drag
+        drag.begin(offset)
     }
 
-    private fun dispatch(stroke: StrokeDescription, onDone: () -> Unit = {}) {
+    private fun dispatch(stroke: StrokeDescription, onDone: () -> Unit = {}, onCancel: () -> Unit = {}) {
         busyUntil = SystemClock.uptimeMillis() + stroke.duration + 1000
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
         val sent = dispatchGesture(gesture, object : GestureResultCallback() {
@@ -222,9 +221,13 @@ class RemoteService : AccessibilityService() {
             }
             override fun onCancelled(g: GestureDescription) {
                 busyUntil = 0
+                onCancel()
             }
         }, null)
-        if (!sent) busyUntil = 0
+        if (!sent) {
+            busyUntil = 0
+            onCancel()
+        }
     }
 
     private fun resolvesToActivity(cls: String): Boolean = try {

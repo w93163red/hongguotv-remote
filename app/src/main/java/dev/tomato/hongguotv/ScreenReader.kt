@@ -15,10 +15,10 @@ class Screen(val snapshot: ScreenSnapshot, val content: Rect, val pager: Rect?)
 fun readScreen(windows: List<AccessibilityWindowInfo>, activity: String?): Screen {
     val imeVisible = windows.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
     // getWindows() is ordered top-most first.
-    val appWindows = windows.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
-    val pkg = appWindows.firstOrNull()?.root?.packageName?.toString().orEmpty()
-    val ownWindows = appWindows.filter { it.root?.packageName == pkg }
-    val base = ownWindows.lastOrNull()?.root
+    val appRoots = windows.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }.mapNotNull { it.root }
+    val pkg = appRoots.firstOrNull()?.packageName?.toString().orEmpty()
+    val ownRoots = appRoots.filter { it.packageName == pkg }
+    val base = ownRoots.lastOrNull()
     val content = Rect().also { base?.getBoundsInScreen(it) }
     val found = if (pkg == TARGET_PACKAGE && base != null) PagerSearch(content).run(base) else null
     val snapshot = ScreenSnapshot(
@@ -27,7 +27,7 @@ fun readScreen(windows: List<AccessibilityWindowInfo>, activity: String?): Scree
         imeVisible = imeVisible,
         hasFullHeightVerticalPager = found?.pager != null,
         // A dialog window above the activity (选集 sheet), or something tappable drawn over the pager centre.
-        hasOverlaySheet = ownWindows.size > 1 || found?.covered == true,
+        hasOverlaySheet = ownRoots.size > 1 || found?.covered == true,
     )
     return Screen(snapshot, content, found?.pager)
 }
