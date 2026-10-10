@@ -25,7 +25,7 @@ private const val EDGE_SCROLL_GAP_MS = 350L
 class RemoteService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var cursor: CursorOverlay
-    private var cursorForced = false
+    private var override: Override = Override.None
     private var lastEdgeScroll = 0L
 
     /** A key we consumed on ACTION_DOWN; its ACTION_UP must be consumed too. */
@@ -128,10 +128,19 @@ class RemoteService : AccessibilityService() {
     private fun refresh(): Pair<Screen, Mode> {
         val screen = readScreen(windows, activity)
         foreground = screen.snapshot.pkg
-        // Forcing the cursor is scoped to the player screen it was forced on.
-        if (classify(screen.snapshot, cursorForced = false) != Mode.PLAYER) cursorForced = false
-        val mode = classify(screen.snapshot, cursorForced)
-        if (mode == Mode.CURSOR) cursor.show(screen.content) else cursor.hide()
+        // A forced cursor is scoped to the video screen it was forced on, the tab bar to screens that show one.
+        val own = classify(screen.snapshot, Override.None)
+        override = when (val o = override) {
+            Override.Cursor -> if (own == Mode.FEED || own == Mode.PLAYER) o else Override.None
+            is Override.Tabs -> if (classify(screen.snapshot, o) == Mode.TABS) o.copy(index = o.index.coerceIn(screen.tabs.indices)) else Override.None
+            Override.None -> o
+        }
+        val mode = classify(screen.snapshot, override)
+        when (mode) {
+            Mode.CURSOR -> cursor.show(screen.content)
+            Mode.TABS -> cursor.frame(screen.tabs[(override as Override.Tabs).index].bounds)
+            else -> cursor.hide()
+        }
         return screen to mode
     }
 
@@ -148,15 +157,37 @@ class RemoteService : AccessibilityService() {
                 val target = nodeAt(windows, p.x, p.y) { it.isClickable }
                 Log.d(TAG, "click at $p on ${target?.className}")
                 target?.performAction(AccessibilityAction.ACTION_CLICK.id)
-                scheduleRefresh(400)
-                scheduleRefresh(1200)
+                settle()
             }
             is Action.ForceCursor -> {
-                cursorForced = action.on
+                override = if (action.on) Override.Cursor else Override.None
+                refresh()
+            }
+            is Action.SelectTab -> {
+                if (screen.tabs.isEmpty()) return
+                val from = (override as? Override.Tabs)?.index ?: screen.selectedTab
+                override = Override.Tabs((from + action.step).coerceIn(screen.tabs.indices))
+                refresh()
+            }
+            Action.OpenTab -> {
+                val tab = (override as? Override.Tabs)?.let { screen.tabs.getOrNull(it.index) } ?: return
+                tab.node.performAction(AccessibilityAction.ACTION_CLICK.id)
+                override = Override.None
+                cursor.hide()
+                settle()
+            }
+            Action.LeaveTabs -> {
+                override = Override.None
                 refresh()
             }
             Action.Pass -> Unit
         }
+    }
+
+    /** Re-reads the screen while a click's result (new page, sheet, popup) is still arriving. */
+    private fun settle() {
+        scheduleRefresh(400)
+        scheduleRefresh(1200)
     }
 
     private fun holdStep(heldMs: Long, content: Rect): Int {

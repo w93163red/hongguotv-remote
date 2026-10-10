@@ -11,45 +11,75 @@ class ModelTest {
         imeVisible = false,
         hasFullHeightVerticalPager = true,
         hasOverlaySheet = false,
+        hasTabBar = true,
     )
-    private val player = feed.copy(activity = "com.dragon.read.component.shortvideo.impl.ShortSeriesActivity")
+    private val player = feed.copy(activity = "com.dragon.read.component.shortvideo.impl.ShortSeriesActivity", hasTabBar = false)
+    private val theater = feed.copy(hasFullHeightVerticalPager = false)
 
-    @Test fun feedAndPlayerArePlayer() {
-        assertEquals(Mode.PLAYER, classify(feed, cursorForced = false))
-        assertEquals(Mode.PLAYER, classify(player, cursorForced = false))
+    @Test fun homeFeedIsFeedAndDramaIsPlayer() {
+        assertEquals(Mode.FEED, classify(feed, Override.None))
+        assertEquals(Mode.PLAYER, classify(player, Override.None))
     }
 
-    @Test fun forcedCursorWinsOverPlayer() {
-        assertEquals(Mode.CURSOR, classify(player, cursorForced = true))
+    @Test fun forcedCursorWinsOverVideo() {
+        assertEquals(Mode.CURSOR, classify(player, Override.Cursor))
+        assertEquals(Mode.CURSOR, classify(feed, Override.Cursor))
+    }
+
+    @Test fun tabsNeedAVisibleUncoveredTabBar() {
+        assertEquals(Mode.TABS, classify(feed, Override.Tabs(1)))
+        assertEquals(Mode.TABS, classify(theater, Override.Tabs(4)))
+        assertEquals(Mode.PLAYER, classify(player, Override.Tabs(0)))
+        assertEquals(Mode.CURSOR, classify(feed.copy(hasOverlaySheet = true), Override.Tabs(0)))
     }
 
     @Test fun overlayOrMissingPagerIsCursor() {
-        assertEquals(Mode.CURSOR, classify(player.copy(hasOverlaySheet = true), cursorForced = false))
-        assertEquals(Mode.CURSOR, classify(feed.copy(hasFullHeightVerticalPager = false), cursorForced = false))
+        assertEquals(Mode.CURSOR, classify(player.copy(hasOverlaySheet = true), Override.None))
+        assertEquals(Mode.CURSOR, classify(theater, Override.None))
     }
 
     @Test fun otherActivityWithPagerIsCursor() {
         val search = feed.copy(activity = "com.dragon.read.component.biz.impl.HongguoSearchActivity")
-        assertEquals(Mode.CURSOR, classify(search, cursorForced = false))
-        assertEquals(Mode.CURSOR, classify(feed.copy(activity = null), cursorForced = false))
+        assertEquals(Mode.CURSOR, classify(search, Override.None))
+        assertEquals(Mode.CURSOR, classify(feed.copy(activity = null), Override.None))
     }
 
     @Test fun otherAppOrKeyboardIsPass() {
-        assertEquals(Mode.PASS, classify(feed.copy(pkg = "com.google.android.apps.tv.launcherx"), cursorForced = false))
-        assertEquals(Mode.PASS, classify(feed.copy(pkg = "com.google.android.apps.tv.launcherx"), cursorForced = true))
-        assertEquals(Mode.PASS, classify(feed.copy(imeVisible = true), cursorForced = false))
-        assertEquals(Mode.PASS, classify(feed.copy(imeVisible = true), cursorForced = true))
+        val launcher = feed.copy(pkg = "com.google.android.apps.tv.launcherx")
+        assertEquals(Mode.PASS, classify(launcher, Override.None))
+        assertEquals(Mode.PASS, classify(launcher, Override.Cursor))
+        assertEquals(Mode.PASS, classify(launcher, Override.Tabs(0)))
+        assertEquals(Mode.PASS, classify(feed.copy(imeVisible = true), Override.None))
+        assertEquals(Mode.PASS, classify(feed.copy(imeVisible = true), Override.Cursor))
+    }
+
+    @Test fun feedKeys() {
+        assertEquals(Action.Flip(next = false), actionFor(Mode.FEED, KeyPress(KeyEvent.KEYCODE_DPAD_UP)))
+        assertEquals(Action.Flip(next = true), actionFor(Mode.FEED, KeyPress(KeyEvent.KEYCODE_DPAD_DOWN)))
+        assertEquals(Action.SelectTab(-1), actionFor(Mode.FEED, KeyPress(KeyEvent.KEYCODE_DPAD_LEFT)))
+        assertEquals(Action.SelectTab(1), actionFor(Mode.FEED, KeyPress(KeyEvent.KEYCODE_DPAD_RIGHT)))
+        assertEquals(Action.SelectTab(0), actionFor(Mode.FEED, KeyPress(KeyEvent.KEYCODE_BACK)))
+        assertEquals(Action.ForceCursor(on = true), actionFor(Mode.FEED, KeyPress(KeyEvent.KEYCODE_DPAD_CENTER)))
+        assertEquals(Action.Pass, actionFor(Mode.FEED, KeyPress(KeyEvent.KEYCODE_DPAD_CENTER, long = true)))
+        assertEquals(Action.Pass, actionFor(Mode.FEED, KeyPress(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)))
     }
 
     @Test fun playerKeys() {
         assertEquals(Action.Flip(next = false), actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_UP)))
         assertEquals(Action.Flip(next = true), actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_DOWN)))
         assertEquals(Action.ForceCursor(on = true), actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_CENTER)))
-        assertEquals(Action.Pass, actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_CENTER, long = true)))
         assertEquals(Action.Pass, actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_LEFT)))
         assertEquals(Action.Pass, actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_RIGHT)))
-        assertEquals(Action.Pass, actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)))
         assertEquals(Action.Pass, actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_BACK)))
+    }
+
+    @Test fun tabKeys() {
+        assertEquals(Action.SelectTab(-1), actionFor(Mode.TABS, KeyPress(KeyEvent.KEYCODE_DPAD_LEFT)))
+        assertEquals(Action.SelectTab(1), actionFor(Mode.TABS, KeyPress(KeyEvent.KEYCODE_DPAD_RIGHT)))
+        assertEquals(Action.OpenTab, actionFor(Mode.TABS, KeyPress(KeyEvent.KEYCODE_DPAD_CENTER)))
+        assertEquals(Action.LeaveTabs, actionFor(Mode.TABS, KeyPress(KeyEvent.KEYCODE_DPAD_UP)))
+        assertEquals(Action.LeaveTabs, actionFor(Mode.TABS, KeyPress(KeyEvent.KEYCODE_DPAD_DOWN)))
+        assertEquals(Action.Pass, actionFor(Mode.TABS, KeyPress(KeyEvent.KEYCODE_BACK)))
     }
 
     @Test fun cursorKeys() {
@@ -60,7 +90,6 @@ class ModelTest {
         assertEquals(Action.CursorClick, actionFor(Mode.CURSOR, KeyPress(KeyEvent.KEYCODE_DPAD_CENTER)))
         assertEquals(Action.ForceCursor(on = false), actionFor(Mode.CURSOR, KeyPress(KeyEvent.KEYCODE_DPAD_CENTER, long = true)))
         assertEquals(Action.Pass, actionFor(Mode.CURSOR, KeyPress(KeyEvent.KEYCODE_BACK)))
-        assertEquals(Action.Pass, actionFor(Mode.CURSOR, KeyPress(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)))
     }
 
     @Test fun passModeConsumesNothing() {

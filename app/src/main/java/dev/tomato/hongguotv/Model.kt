@@ -12,15 +12,26 @@ data class ScreenSnapshot(
     val imeVisible: Boolean,
     val hasFullHeightVerticalPager: Boolean,
     val hasOverlaySheet: Boolean,
+    val hasTabBar: Boolean,
 )
 
-enum class Mode { PLAYER, CURSOR, PASS }
+/** FEED is the 首页 video feed, which sits above the bottom tab bar; PLAYER is a drama's episode pager. */
+enum class Mode { FEED, PLAYER, TABS, CURSOR, PASS }
 
-fun classify(s: ScreenSnapshot, cursorForced: Boolean): Mode = when {
+/** What the user has switched to on top of the screen's own mode. */
+sealed interface Override {
+    data object None : Override
+    data object Cursor : Override
+    data class Tabs(val index: Int) : Override
+}
+
+fun classify(s: ScreenSnapshot, override: Override): Mode = when {
     s.pkg != TARGET_PACKAGE || s.imeVisible -> Mode.PASS
-    cursorForced -> Mode.CURSOR
-    (s.activity == HOME_ACTIVITY || s.activity == PLAYER_ACTIVITY) &&
-        s.hasFullHeightVerticalPager && !s.hasOverlaySheet -> Mode.PLAYER
+    override is Override.Tabs && s.hasTabBar && !s.hasOverlaySheet -> Mode.TABS
+    override == Override.Cursor -> Mode.CURSOR
+    !s.hasFullHeightVerticalPager || s.hasOverlaySheet -> Mode.CURSOR
+    s.activity == HOME_ACTIVITY -> Mode.FEED
+    s.activity == PLAYER_ACTIVITY -> Mode.PLAYER
     else -> Mode.CURSOR
 }
 
@@ -29,16 +40,34 @@ sealed interface Action {
     data class MoveCursor(val dx: Int, val dy: Int) : Action
     data object CursorClick : Action
     data class ForceCursor(val on: Boolean) : Action
+    /** Selects the bottom tab [step] places from the current one, entering the tab bar first if needed. */
+    data class SelectTab(val step: Int) : Action
+    data object OpenTab : Action
+    data object LeaveTabs : Action
     data object Pass : Action
 }
 
 data class KeyPress(val keyCode: Int, val long: Boolean = false)
 
+private val flips = mapOf(
+    KeyPress(KeyEvent.KEYCODE_DPAD_UP) to Action.Flip(next = false),
+    KeyPress(KeyEvent.KEYCODE_DPAD_DOWN) to Action.Flip(next = true),
+    KeyPress(KeyEvent.KEYCODE_DPAD_CENTER) to Action.ForceCursor(on = true),
+)
+
 val KEYMAP: Map<Mode, Map<KeyPress, Action>> = mapOf(
-    Mode.PLAYER to mapOf(
-        KeyPress(KeyEvent.KEYCODE_DPAD_UP) to Action.Flip(next = false),
-        KeyPress(KeyEvent.KEYCODE_DPAD_DOWN) to Action.Flip(next = true),
-        KeyPress(KeyEvent.KEYCODE_DPAD_CENTER) to Action.ForceCursor(on = true),
+    Mode.FEED to flips + mapOf(
+        KeyPress(KeyEvent.KEYCODE_DPAD_LEFT) to Action.SelectTab(-1),
+        KeyPress(KeyEvent.KEYCODE_DPAD_RIGHT) to Action.SelectTab(1),
+        KeyPress(KeyEvent.KEYCODE_BACK) to Action.SelectTab(0),
+    ),
+    Mode.PLAYER to flips,
+    Mode.TABS to mapOf(
+        KeyPress(KeyEvent.KEYCODE_DPAD_LEFT) to Action.SelectTab(-1),
+        KeyPress(KeyEvent.KEYCODE_DPAD_RIGHT) to Action.SelectTab(1),
+        KeyPress(KeyEvent.KEYCODE_DPAD_CENTER) to Action.OpenTab,
+        KeyPress(KeyEvent.KEYCODE_DPAD_UP) to Action.LeaveTabs,
+        KeyPress(KeyEvent.KEYCODE_DPAD_DOWN) to Action.LeaveTabs,
     ),
     Mode.CURSOR to mapOf(
         KeyPress(KeyEvent.KEYCODE_DPAD_UP) to Action.MoveCursor(0, -1),
