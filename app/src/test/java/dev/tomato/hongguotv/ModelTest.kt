@@ -42,17 +42,14 @@ class ModelTest {
     }
 
     @Test fun playerKeys() {
-        assertEquals(Action.SwipeVertical(next = false), actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_UP)))
-        assertEquals(Action.SwipeVertical(next = true), actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_DOWN)))
-        assertEquals(Action.Seek(forward = false), actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_LEFT)))
-        assertEquals(Action.Seek(forward = true), actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_RIGHT)))
-        assertEquals(Action.TapCenter, actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_CENTER)))
-        assertEquals(Action.ForceCursor(on = true), actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_CENTER, long = true)))
-        assertEquals(Action.TapCenter, actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)))
-        assertEquals(Action.Seek(forward = true), actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_MEDIA_FAST_FORWARD)))
-        assertEquals(Action.Seek(forward = false), actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_MEDIA_REWIND)))
+        assertEquals(Action.Flip(next = false), actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_UP)))
+        assertEquals(Action.Flip(next = true), actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_DOWN)))
+        assertEquals(Action.ForceCursor(on = true), actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_CENTER)))
+        assertEquals(Action.Pass, actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_CENTER, long = true)))
+        assertEquals(Action.Pass, actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_LEFT)))
+        assertEquals(Action.Pass, actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_RIGHT)))
+        assertEquals(Action.Pass, actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)))
         assertEquals(Action.Pass, actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_BACK)))
-        assertEquals(Action.Pass, actionFor(Mode.PLAYER, KeyPress(KeyEvent.KEYCODE_DPAD_UP, long = true)))
     }
 
     @Test fun cursorKeys() {

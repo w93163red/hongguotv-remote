@@ -34,7 +34,7 @@ class LauncherActivity : Activity() {
                 "adb shell settings put secure enabled_accessibility_services " +
                 "$packageName/${RemoteService::class.java.name}\n" +
                 "adb shell settings put secure accessibility_enabled 1\n\n" +
-                "开启后：上下键切换视频，确认键暂停/播放，左右键快退/快进，长按确认键进入光标模式。",
+                "开启后：上下键切换视频；确认键调出光标，光标下确认键点击，长按确认键收起光标。",
             withSettingsButton = true,
         )
     }

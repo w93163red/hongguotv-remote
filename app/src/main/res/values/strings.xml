@@ -2,5 +2,5 @@
 <resources>
     <string name="app_name">红果短剧</string>
     <string name="service_label">红果遥控器</string>
-    <string name="service_description">让电视遥控器可以操作红果短剧：上下切换视频，确认键暂停，左右快进快退，长按确认键进入光标模式。只在红果短剧在前台时生效。</string>
+    <string name="service_description">让电视遥控器可以操作红果短剧：上下切换视频，确认键调出光标。只在红果短剧在前台时生效。</string>
 </resources>
