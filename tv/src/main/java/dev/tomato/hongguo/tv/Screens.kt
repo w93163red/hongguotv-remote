@@ -388,7 +388,7 @@ fun LoginScreen(app: AppState) {
         status = "二维码加载中…"
         val code = runCatching { app.api.qrcode() }.getOrElse { status = "二维码加载失败：${it.message} · 按 OK 重试"; return@LaunchedEffect }
         qr = code
-        status = "用番茄小说 App「扫一扫」扫码登录"
+        status = "等待扫码…"
         while (true) {
             delay(2000)
             val s = runCatching { app.api.authStatus(code.token) }.getOrNull() ?: continue

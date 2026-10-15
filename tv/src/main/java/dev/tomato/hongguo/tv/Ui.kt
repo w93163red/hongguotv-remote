@@ -166,7 +166,7 @@ fun PosterCard(
                     Modifier.background(if (rank <= 3) Accent else Color(0x8C000000), RoundedCornerShape(topStart = 10.dp, bottomEnd = 8.dp))
                         .padding(horizontal = 6.dp, vertical = 2.dp).widthIn(min = 14.dp),
                     contentAlignment = Alignment.Center,
-                ) { T("$rank", 13.sp, Color.White, FontWeight.Black) }
+                ) { Text("$rank", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Black, softWrap = false) }
             }
             T(meta, 11.sp, FocusBg, modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = if (progress != null) 13.dp else 7.dp))
             if (progress != null) {
