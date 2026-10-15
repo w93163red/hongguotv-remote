@@ -62,6 +62,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -481,11 +483,12 @@ private fun ControlLayer(app: AppState) {
     val speedBtn = remember { FocusRequester() }
     val moreBtn = remember { FocusRequester() }
     val followed = m.seriesId in app.store.favs
+    var prev by remember { mutableStateOf(p.overlay) }
     LaunchedEffect(p.overlay) {
-        when (p.overlay) {
-            Overlay.Controls -> runCatching { first.requestFocus() }
-            else -> {}
+        if (p.overlay == Overlay.Controls) {
+            runCatching { (if (prev == Overlay.Speed) speedBtn else if (prev == Overlay.More) moreBtn else first).requestFocus() }
         }
+        prev = p.overlay
     }
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxWidth().height(350.dp).align(Alignment.BottomStart).background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xEB000000)))))
@@ -508,13 +511,13 @@ private fun ControlLayer(app: AppState) {
             RoundButton(if (followed) "已追剧" else "追剧", { app.store.toggleFav(m) }) {
                 Icon(if (followed) Icons.Star else Icons.StarLine, null, Modifier.size(19.dp), tint = if (followed) Color(0xFFFFC53D) else Fg)
             }
-            Box {
+            Box(contentAlignment = Alignment.TopCenter) {
                 RoundButton("倍速", { p.overlay = Overlay.Speed }, Modifier.focusRequester(speedBtn)) {
                     T("${app.store.speed.let { if (it % 1f == 0f) "%.1f".format(it) else "$it" }}x", 12.sp, weight = FontWeight.Bold)
                 }
-                if (p.overlay == Overlay.Speed) SpeedMenu(app) { runCatching { speedBtn.requestFocus() } }
+                if (p.overlay == Overlay.Speed) SpeedMenu(app)
             }
-            Box {
+            Box(contentAlignment = Alignment.TopEnd) {
                 RoundButton("更多", { p.overlay = Overlay.More }, Modifier.focusRequester(moreBtn)) { Icon(Icons.More, null, Modifier.size(18.dp)) }
                 if (p.overlay == Overlay.More) MoreMenu(app)
             }
@@ -531,10 +534,14 @@ private fun ControlLayer(app: AppState) {
 }
 
 @Composable
-private fun PopupMenu(items: List<Pair<String, Boolean>>, initial: Int, onPick: (Int) -> Unit) {
+private fun PopupMenu(items: List<Pair<String, Boolean>>, initial: Int, alignEnd: Boolean = false, onPick: (Int) -> Unit) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-    Box(Modifier.offset(y = (-(items.size * 40 + 70)).dp)) {
+    // Zero-size layout so the menu floats above its button without resizing the button row.
+    Box(Modifier.layout { measurable, _ ->
+        val menu = measurable.measure(Constraints())
+        layout(0, 0) { menu.place(if (alignEnd) -menu.width else -menu.width / 2, -menu.height - 12.dp.roundToPx()) }
+    }) {
         Column(
             Modifier.background(Color(0xF51C1C20), RoundedCornerShape(10.dp)).padding(6.dp).width(150.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -550,19 +557,18 @@ private fun PopupMenu(items: List<Pair<String, Boolean>>, initial: Int, onPick: 
 }
 
 @Composable
-private fun SpeedMenu(app: AppState, refocus: () -> Unit) {
+private fun SpeedMenu(app: AppState) {
     val cur = SPEEDS.indexOf(app.store.speed).coerceAtLeast(0)
     PopupMenu(SPEEDS.mapIndexed { i, s -> "${s}x" to (i == cur) }, cur) {
         app.player.setSpeed(SPEEDS[it])
         app.player.overlay = Overlay.Controls
-        refocus()
     }
 }
 
 @Composable
 private fun MoreMenu(app: AppState) {
     val sides = app.store.sides
-    PopupMenu(listOf("两侧：${if (sides == Sides.Blur) "模糊填满" else "纯黑"}" to false, "设置" to false), 0) {
+    PopupMenu(listOf("两侧：${if (sides == Sides.Blur) "模糊填满" else "纯黑"}" to false, "设置" to false), 0, alignEnd = true) {
         if (it == 0) app.store.sides = if (sides == Sides.Blur) Sides.Black else Sides.Blur
         else app.go(Screen.Settings)
     }

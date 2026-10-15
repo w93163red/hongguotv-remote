@@ -216,6 +216,7 @@ fun SearchScreen(app: AppState) {
 
     LaunchedEffect(Unit) {
         runCatching { field.requestFocus() }
+        runCatching { app.api.ensureSid() }
         history = runCatching { app.api.searchHistory() }.getOrDefault(emptyList())
         hot = runCatching { app.api.hotWords() }.getOrDefault(emptyList())
         hotRank = runCatching { app.api.rank("hot", 8) }.getOrDefault(emptyList())

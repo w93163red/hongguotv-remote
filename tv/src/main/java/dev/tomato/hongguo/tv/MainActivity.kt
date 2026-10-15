@@ -27,6 +27,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
@@ -192,7 +196,11 @@ fun App(app: AppState) {
     }
 }
 
-/** A real text field: OK opens the system IME, UP/DOWN leave it even when keys arrive from a keyboard source. */
+/**
+ * A real text field for the system IME. DPAD focus rests on a wrapper; OK moves focus into the field,
+ * which opens the IME, and UP/DOWN leave it even when keys arrive from a keyboard source.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun TvTextField(
     value: String,
@@ -206,36 +214,53 @@ fun TvTextField(
 ) {
     val kb = LocalSoftwareKeyboardController.current
     val fm = LocalFocusManager.current
+    val wrapper = remember { FocusRequester() }
+    val field = remember { FocusRequester() }
+    var editing by remember { mutableStateOf(false) }
     var focused by remember { mutableStateOf(false) }
-    BasicTextField(
-        value, onValueChange,
-        modifier.width(width).onFocusChanged { focused = it.isFocused }.onPreviewKeyEvent { ev ->
+    fun leave(dir: FocusDirection): Boolean {
+        kb?.hide()
+        if (editing) { editing = false; wrapper.requestFocus() }
+        return fm.moveFocus(dir)
+    }
+    Box(
+        modifier.width(width).focusRequester(wrapper).onFocusChanged { focused = it.hasFocus }.onPreviewKeyEvent { ev ->
             if (ev.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
             when (ev.key) {
-                Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { kb?.show(); true }
-                Key.DirectionDown -> { kb?.hide(); fm.moveFocus(FocusDirection.Down) }
-                Key.DirectionUp -> { kb?.hide(); fm.moveFocus(FocusDirection.Up) }
+                Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
+                    if (!editing) { editing = true; field.requestFocus() }
+                    kb?.show()
+                    true
+                }
+                Key.DirectionDown -> leave(FocusDirection.Down)
+                Key.DirectionUp -> leave(FocusDirection.Up)
                 else -> false
             }
-        },
-        textStyle = TextStyle(color = Fg, fontSize = size),
-        singleLine = true,
-        cursorBrush = SolidColor(Accent),
-        keyboardOptions = KeyboardOptions(
-            keyboardType = if (uri) KeyboardType.Uri else KeyboardType.Text,
-            imeAction = if (uri) ImeAction.Done else ImeAction.Search,
-        ),
-        keyboardActions = KeyboardActions(onAny = { kb?.hide(); onSubmit() }),
-        decorationBox = { inner ->
-            Column {
-                Box(Modifier.height(size.value.dp * 2.2f), contentAlignment = Alignment.CenterStart) {
-                    if (value.isEmpty()) T(placeholder, size, FgDim)
-                    inner()
+        }.focusable(),
+    ) {
+        BasicTextField(
+            value, onValueChange,
+            Modifier.fillMaxWidth().focusRequester(field).focusProperties { canFocus = editing }
+                .onFocusChanged { if (!it.isFocused) editing = false },
+            textStyle = TextStyle(color = Fg, fontSize = size),
+            singleLine = true,
+            cursorBrush = SolidColor(Accent),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = if (uri) KeyboardType.Uri else KeyboardType.Text,
+                imeAction = if (uri) ImeAction.Done else ImeAction.Search,
+            ),
+            keyboardActions = KeyboardActions(onAny = { kb?.hide(); onSubmit() }),
+            decorationBox = { inner ->
+                Column {
+                    Box(Modifier.height(size.value.dp * 2.2f), contentAlignment = Alignment.CenterStart) {
+                        if (value.isEmpty()) T(placeholder, size, FgDim)
+                        inner()
+                    }
+                    Box(Modifier.fillMaxWidth().height(if (focused) 3.dp else 1.5.dp).background(if (focused) Accent else Fg))
                 }
-                Box(Modifier.width(width).height(if (focused) 3.dp else 1.5.dp).background(if (focused) Accent else Fg))
-            }
-        },
-    )
+            },
+        )
+    }
 }
 
 @Composable

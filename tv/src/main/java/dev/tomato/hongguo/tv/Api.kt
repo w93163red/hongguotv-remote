@@ -42,8 +42,9 @@ class ApiException(message: String) : IOException(message)
 class Api(prefs: SharedPreferences) {
     @Volatile var base: String = ""
 
+    private val jar = PrefsCookieJar(prefs)
     val client: OkHttpClient = OkHttpClient.Builder()
-        .cookieJar(PrefsCookieJar(prefs))
+        .cookieJar(jar)
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
@@ -83,6 +84,12 @@ class Api(prefs: SharedPreferences) {
     suspend fun filters(genre: String): Filters = get("/filters?genre=$genre")
     suspend fun browse(genre: String, theme: String?): List<SeriesCard> =
         get<CardList>("/browse?genre=$genre${theme?.let { "&theme=${enc(it)}" }.orEmpty()}&sort=hot_score").items
+
+    /** hongguo-web only hands out hg_sid with a QR code, and search history is keyed by it. */
+    suspend fun ensureSid() {
+        val url = url("/").toHttpUrl()
+        if (jar.loadForRequest(url).none { it.name == "hg_sid" }) call("GET", "/auth/qrcode")
+    }
 
     suspend fun search(q: String): List<SeriesCard> = get<CardList>("/search/page?q=${enc(q)}").items
     suspend fun searchHistory(): List<String> = get<SearchHistory>("/search/history").history
