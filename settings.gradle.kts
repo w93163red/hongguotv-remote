@@ -13,3 +13,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "hongguotv"
 include(":app")
+include(":tv")

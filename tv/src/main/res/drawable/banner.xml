@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 320x180dp TV banner: accent field, play glyph and the letters "TV". -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path android:fillColor="#FF3B5C" android:pathData="M0,0h320v180h-320z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M70,50 L130,90 L70,130 Z" />
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="14" android:strokeLineCap="round"
+        android:pathData="M160,56 h52 M186,56 v68 M226,56 l24,68 l24,-68" />
+</vector>
