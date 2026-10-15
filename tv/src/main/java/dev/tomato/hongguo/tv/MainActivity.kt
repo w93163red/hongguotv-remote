@@ -187,7 +187,8 @@ fun App(app: AppState) {
         Screen.Search -> SearchScreen(app)
         is Screen.Mine -> MineScreen(app, s.tab)
         Screen.Login -> LoginScreen(app)
-        Screen.Settings, Screen.Setup -> PlayerScreen(app)
+        Screen.Settings -> SettingsScreen(app, firstRun = false)
+        Screen.Setup -> SettingsScreen(app, firstRun = true)
     }
 }
 
@@ -235,4 +236,57 @@ fun TvTextField(
             }
         },
     )
+}
+
+@Composable
+private fun SettingsScreen(app: AppState, firstRun: Boolean) {
+    if (!firstRun) BackHandler { app.backToNav() }
+    val scope = rememberCoroutineScope()
+    var url by remember { mutableStateOf(app.store.serverUrl.ifEmpty { "http://" }) }
+    var status by remember { mutableStateOf(app.setupError ?: "") }
+    val first = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
+    fun normalized() = url.trim().trimEnd('/').let { if (it.startsWith("http")) it else "http://$it" }
+
+    Column(
+        Modifier.fillMaxSize().background(PageBg).padding(start = 64.dp, top = 40.dp, end = 64.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        T(if (firstRun) "连接 hongguo-web 服务器" else "设置", 30.sp, weight = FontWeight.Bold)
+        T("服务器地址", 16.sp, FgDim)
+        TvTextField(url, { url = it }, "http://192.168.1.2:8000", Modifier.focusRequester(first), width = 420.dp, size = 20.sp, uri = true)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Pill("测试连接", {
+                status = "正在连接…"
+                scope.launch {
+                    status = runCatching { app.api.ping(normalized()) }.fold({ "连接成功" }, { "连接失败：${it.message}" })
+                }
+            })
+            Pill("保存", {
+                app.store.setServer(normalized())
+                url = normalized()
+                status = "已保存，正在加载…"
+                app.boot(show = firstRun)
+            })
+        }
+        if (status.isNotEmpty()) T(status, 13.sp, if (status.contains("失败") || status.contains("无法")) Accent else FgDim, maxLines = 2)
+        if (!firstRun) {
+            Spacer(Modifier.height(6.dp))
+            T("视频两侧", 16.sp, FgDim)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Pill("模糊填满", { app.store.sides = Sides.Blur }, selected = app.store.sides == Sides.Blur)
+                Pill("纯黑", { app.store.sides = Sides.Black }, selected = app.store.sides == Sides.Black)
+            }
+            Spacer(Modifier.height(6.dp))
+            T("观看记录 · ${app.store.watched.size} 部", 16.sp, FgDim)
+            Pill("清除观看记录", { app.store.clearWatched(); status = "观看记录已清除" })
+            app.user?.let { u ->
+                Spacer(Modifier.height(6.dp))
+                T("账号 · ${u.name.ifEmpty { "已登录" }}", 16.sp, FgDim)
+                Pill("退出登录", {
+                    scope.launch { runCatching { app.api.logout() }; app.user = null; status = "已退出登录" }
+                })
+            }
+        }
+    }
 }
