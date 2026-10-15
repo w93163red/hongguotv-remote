@@ -45,7 +45,7 @@ for i in range(1, N_SERIES + 1):
         "series_id": series_id(i),
         "title": "示例短剧 %02d" % i,
         "genre": list(GENRES)[i % 3],
-        "theme": THEMES[i % len(THEMES)],
+        "theme": THEMES[(i // 3) % len(THEMES)],
         "episode_cnt": 20 + (i * 17) % 61,
         "status": "完结" if i % 2 else "连载中",
         "play_cnt": 100000 + ((i * 7919) % 97) * 371000,

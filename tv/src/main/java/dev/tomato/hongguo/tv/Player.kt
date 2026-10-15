@@ -41,9 +41,11 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.itemsIndexed as rowItemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -571,10 +573,8 @@ private fun EpisodePanel(app: AppState) {
     val p = app.player
     val m = p.meta ?: return
     val desc = app.store.epDesc
-    val ordered = if (desc) p.episodes.asReversed() else p.episodes
-    val ranges = episodeRanges(ordered.size)
-    val curPos = ordered.indexOfFirst { it.index == p.current?.index }.coerceAtLeast(0)
-    var range by remember(desc, p.episodes) { mutableIntStateOf(curPos / 30) }
+    val ranges = episodeRanges(p.episodes.size).let { if (desc) it.reversed() else it }
+    var range by remember(desc, p.episodes) { mutableIntStateOf(ranges.indexOfFirst { p.epIdx in it }.coerceAtLeast(0)) }
     val savedEp = app.store.watched[m.seriesId]?.ep ?: 0
     val followed = m.seriesId in app.store.favs
     val focus = remember { FocusRequester() }
@@ -598,22 +598,23 @@ private fun EpisodePanel(app: AppState) {
             }
             if (m.intro.isNotEmpty()) T(m.intro, 12.sp, Color(0xFFA9AEB6), maxLines = 2)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-                ranges.forEachIndexed { i, r ->
-                    Pill(
-                        "${ordered[r.first].index}-${ordered[r.last].index}", { range = i },
-                        Modifier.onFocusChanged { if (it.isFocused) range = i }, selected = i == range, height = 28.dp, size = 12.sp,
-                        container = if (i == range) Color(0xFF3A3B42) else Color.Transparent, radius = 5.dp,
-                    )
+                LazyRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    rowItemsIndexed(ranges) { i, r ->
+                        Pill(
+                            p.episodes[if (desc) r.last else r.first].index.toString() + "-" + p.episodes[if (desc) r.first else r.last].index, { range = i },
+                            Modifier.onFocusChanged { if (it.isFocused) range = i }, selected = i == range, height = 28.dp, size = 12.sp,
+                            container = if (i == range) Color(0xFF3A3B42) else Color.Transparent, radius = 5.dp, padH = 9.dp,
+                        )
+                    }
                 }
-                Spacer(Modifier.weight(1f))
-                Pill(if (desc) "倒序 ⇅" else "正序 ⇅", { app.store.toggleEpDesc() }, height = 28.dp, size = 11.sp, container = Color.Transparent, radius = 5.dp)
-                Pill("最新", { p.overlay = Overlay.None; p.playEpisode(p.episodes.lastIndex) }, height = 28.dp, size = 11.sp, container = Color.Transparent, radius = 5.dp)
+                Pill(if (desc) "倒序 ⇅" else "正序 ⇅", { app.store.toggleEpDesc() }, height = 28.dp, size = 11.sp, container = Color.Transparent, radius = 5.dp, padH = 7.dp)
+                Pill("最新", { p.overlay = Overlay.None; p.playEpisode(p.episodes.lastIndex) }, height = 28.dp, size = 11.sp, container = Color.Transparent, radius = 5.dp, padH = 7.dp)
             }
             val r = ranges.getOrNull(range) ?: return@Column
-            val inRange = ordered.subList(r.first, r.last + 1)
-            val focusAt = if (curPos in r) curPos - r.first else 0
-            val grid = rememberLazyGridState(initialFirstVisibleItemIndex = focusAt)
+            val inRange = p.episodes.subList(r.first, r.last + 1).let { if (desc) it.asReversed() else it }
+            val focusAt = inRange.indexOfFirst { it.index == p.current?.index }.coerceAtLeast(0)
             key(range, desc) {
+                val grid = rememberLazyGridState(initialFirstVisibleItemIndex = focusAt / 3 * 3)
                 LazyVerticalGrid(
                     GridCells.Fixed(3), Modifier.weight(1f), grid,
                     verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -628,7 +629,7 @@ private fun EpisodePanel(app: AppState) {
                     }
                 }
             }
-            LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+            LaunchedEffect(desc) { runCatching { focus.requestFocus() } }
             T("↑↓←→ 选集 · OK 播放 · 菜单键 正倒序 · 返回 关闭", 11.sp, Color(0xFF80868F), modifier = Modifier.padding(bottom = 14.dp))
         }
     }

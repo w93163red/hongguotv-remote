@@ -6,12 +6,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -106,6 +108,7 @@ fun Pill(
     radius: Dp = 6.dp,
     container: Color = if (selected) Color(0x33FFFFFF) else Color(0x14FFFFFF),
     content: Color = if (selected) Fg else Color(0xB3F1F1F1),
+    padH: Dp = 16.dp,
 ) {
     Surface(
         onClick = onClick,
@@ -119,7 +122,7 @@ fun Pill(
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
     ) {
         Row(
-            Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            Modifier.fillMaxHeight().padding(horizontal = padH),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
         ) {
@@ -161,7 +164,7 @@ fun PosterCard(
             if (rank != null) {
                 Box(
                     Modifier.background(if (rank <= 3) Accent else Color(0x8C000000), RoundedCornerShape(topStart = 10.dp, bottomEnd = 8.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp).width(14.dp),
+                        .padding(horizontal = 6.dp, vertical = 2.dp).widthIn(min = 14.dp),
                     contentAlignment = Alignment.Center,
                 ) { T("$rank", 13.sp, Color.White, FontWeight.Black) }
             }

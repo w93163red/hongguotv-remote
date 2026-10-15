@@ -61,6 +61,11 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/** LEFT on a grid's first column stays put instead of escaping to the tab row above. */
+@OptIn(ExperimentalComposeUiApi::class)
+private fun Modifier.firstColumn(i: Int, columns: Int) =
+    if (i % columns == 0) focusProperties { left = FocusRequester.Cancel } else this
+
 private val GENRES = listOf("short_play" to "短剧", "comic_series" to "漫剧", "ai_series" to "AI 短剧")
 
 /** A row of underlined tabs that switch on focus; entering the row lands on the selected tab. */
@@ -119,7 +124,7 @@ private fun CardGrid(
             itemsIndexed(items, key = { _, c -> c.seriesId }) { i, c ->
                 val w = app.store.watched[c.seriesId]
                 PosterCard(
-                    c.title, app.api.img(c.cover), { onOpen(); app.open(c.seriesId, c) }, posterHeight = posterHeight,
+                    c.title, app.api.img(c.cover), { onOpen(); app.open(c.seriesId, c) }, Modifier.firstColumn(i, columns), posterHeight = posterHeight,
                     meta = if (w != null) "看到第 ${w.ep} 集" else if (c.episodeCnt > 0) "共 ${c.episodeCnt} 集" else "",
                     rank = if (ranked) i + 1 else null,
                 )
@@ -351,10 +356,10 @@ fun MineScreen(app: AppState, initialTab: Int) {
                 GridCells.Fixed(6), Modifier.padding(top = 8.dp), contentPadding = PaddingValues(12.dp),
                 verticalArrangement = Arrangement.spacedBy(22.dp), horizontalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                itemsIndexed(cards, key = { _, c -> c.first }) { _, (sid, title, w) ->
+                itemsIndexed(cards, key = { _, c -> c.first }) { i, (sid, title, w) ->
                     val total = totals[sid] ?: 0
                     PosterCard(
-                        title.ifEmpty { "剧集 $sid" }, app.api.img(covers[sid].orEmpty()), { app.open(sid) }, posterHeight = 205.dp,
+                        title.ifEmpty { "剧集 $sid" }, app.api.img(covers[sid].orEmpty()), { app.open(sid) }, Modifier.firstColumn(i, 6), posterHeight = 205.dp,
                         meta = when {
                             w == null -> if (total > 0) "共 $total 集" else ""
                             total > 0 && w.ep >= total -> "已看完"
