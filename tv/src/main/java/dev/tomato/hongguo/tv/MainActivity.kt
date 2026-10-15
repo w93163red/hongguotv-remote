@@ -181,8 +181,58 @@ fun App(app: AppState) {
     LaunchedEffect(app.screen) {
         if (app.screen == Screen.Player && app.player.exo.currentMediaItem != null) app.player.exo.play()
     }
-    when (app.screen) {
+    when (val s = app.screen) {
         Screen.Player -> PlayerScreen(app)
-        else -> PlayerScreen(app)
+        Screen.Theater -> TheaterScreen(app)
+        Screen.Search -> SearchScreen(app)
+        is Screen.Mine -> MineScreen(app, s.tab)
+        Screen.Login -> LoginScreen(app)
+        Screen.Settings, Screen.Setup -> PlayerScreen(app)
     }
+}
+
+/** A real text field: OK opens the system IME, UP/DOWN leave it even when keys arrive from a keyboard source. */
+@Composable
+fun TvTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    width: Dp = 310.dp,
+    size: TextUnit = 22.sp,
+    uri: Boolean = false,
+    onSubmit: () -> Unit = {},
+) {
+    val kb = LocalSoftwareKeyboardController.current
+    val fm = LocalFocusManager.current
+    var focused by remember { mutableStateOf(false) }
+    BasicTextField(
+        value, onValueChange,
+        modifier.width(width).onFocusChanged { focused = it.isFocused }.onPreviewKeyEvent { ev ->
+            if (ev.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+            when (ev.key) {
+                Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { kb?.show(); true }
+                Key.DirectionDown -> { kb?.hide(); fm.moveFocus(FocusDirection.Down) }
+                Key.DirectionUp -> { kb?.hide(); fm.moveFocus(FocusDirection.Up) }
+                else -> false
+            }
+        },
+        textStyle = TextStyle(color = Fg, fontSize = size),
+        singleLine = true,
+        cursorBrush = SolidColor(Accent),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (uri) KeyboardType.Uri else KeyboardType.Text,
+            imeAction = if (uri) ImeAction.Done else ImeAction.Search,
+        ),
+        keyboardActions = KeyboardActions(onAny = { kb?.hide(); onSubmit() }),
+        decorationBox = { inner ->
+            Column {
+                Box(Modifier.height(size.value.dp * 2.2f), contentAlignment = Alignment.CenterStart) {
+                    if (value.isEmpty()) T(placeholder, size, FgDim)
+                    inner()
+                }
+                Box(Modifier.width(width).height(if (focused) 3.dp else 1.5.dp).background(if (focused) Accent else Fg))
+            }
+        },
+    )
 }
