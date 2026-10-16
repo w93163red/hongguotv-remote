@@ -1,5 +1,6 @@
 package dev.tomato.hongguo.tv
 
+import androidx.compose.ui.graphics.FilterQuality
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.speech.RecognizerIntent
@@ -10,6 +11,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -416,22 +419,25 @@ fun LoginScreen(app: AppState) {
             NavItem("设置", false, { app.go(Screen.Settings) }, dim = true) { androidx.tv.material3.Icon(Icons.Settings, null, Modifier.size(17.dp)) }
         }
         Box(Modifier.width(1.dp).fillMaxSize().background(Color(0x14F1F1F1)))
-        Column(Modifier.weight(1f).padding(top = 52.dp, bottom = 32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            T("用番茄小说 App「扫一扫」扫码登录", 28.sp, weight = FontWeight.Bold)
-            Box(
-                Modifier.padding(top = 30.dp).size(200.dp).background(Color.White, RoundedCornerShape(12.dp)).padding(10.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (bitmap != null) Image(bitmap, "登录二维码", Modifier.fillMaxSize())
-                else T("…", 14.sp, Color(0xFF6D727A))
+        // A long scan-auth URL makes a dense code; it must be large to scan from the couch.
+        Column(Modifier.weight(1f).padding(top = 40.dp, bottom = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(48.dp)) {
+                Box(
+                    Modifier.fillMaxHeight().aspectRatio(1f).background(Color.White, RoundedCornerShape(12.dp)).padding(14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (bitmap != null) Image(bitmap, "登录二维码", Modifier.fillMaxSize(), filterQuality = FilterQuality.None)
+                    else T("…", 14.sp, Color(0xFF6D727A))
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    T("扫码登录", 28.sp, weight = FontWeight.Bold)
+                    T(status, 17.sp, if (status.startsWith("已扫码") || status.startsWith("登录成功")) Accent else Fg, modifier = Modifier.padding(top = 8.dp, bottom = 6.dp))
+                    T("1. 打开手机上的番茄小说 App", 15.sp, Color(0xBFF1F1F1))
+                    T("2. 点「扫一扫」，对准二维码", 15.sp, Color(0xBFF1F1F1))
+                    T("3. 在手机上确认登录", 15.sp, Color(0xBFF1F1F1))
+                }
             }
-            T(status, 17.sp, if (status.startsWith("已扫码") || status.startsWith("登录成功")) Accent else Fg, modifier = Modifier.padding(top = 22.dp))
-            Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                T("1. 打开手机上的番茄小说 App", 15.sp, Color(0xBFF1F1F1))
-                T("2. 点「扫一扫」，对准二维码", 15.sp, Color(0xBFF1F1F1))
-                T("3. 在手机上确认登录", 15.sp, Color(0xBFF1F1F1))
-            }
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.height(20.dp))
             T("与红果同一账号体系 · 登录后同步追剧和观看记录", 13.sp, Color(0x73F1F1F1))
         }
     }
