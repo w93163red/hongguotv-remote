@@ -53,6 +53,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -82,6 +83,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -123,6 +125,9 @@ class PlayerState(context: Context, private val api: Api, private val store: Sto
         private set
     var durationMs by mutableLongStateOf(0)
         private set
+    /** Width / height of the current clip; 漫剧 are often landscape. */
+    var videoAspect by mutableFloatStateOf(9f / 16f)
+        private set
     var toast: String? by mutableStateOf(null)
     var toastAt by mutableLongStateOf(0)
         private set
@@ -146,6 +151,10 @@ class PlayerState(context: Context, private val api: Api, private val store: Sto
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 playing = isPlaying
                 if (!isPlaying) saveNow()
+            }
+
+            override fun onVideoSizeChanged(size: VideoSize) {
+                if (size.width > 0 && size.height > 0) videoAspect = size.width * size.pixelWidthHeightRatio / size.height
             }
 
             override fun onPlayerError(e: PlaybackException) {
@@ -402,7 +411,7 @@ private fun VideoLayer(app: AppState) {
             )
             Box(Modifier.fillMaxSize().background(Color(0x99000000)))
         }
-        Box(Modifier.fillMaxHeight().aspectRatio(9f / 16f).align(Alignment.Center).background(Color.Black)) {
+        Box(Modifier.align(Alignment.Center).aspectRatio(p.videoAspect).background(Color.Black)) {
             AndroidView(
                 factory = { ctx ->
                     PlayerView(ctx).apply {
